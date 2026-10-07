@@ -7,13 +7,11 @@ from models.c_self_sim_model import PairProjection
 
 # used after global embedding
 class ProjectionMLP(nn.Module):
-    def __init__(
-        self,
-        in_dim=64,
-        hidden_dim=256,
-        out_dim=128,
-    ):
+    def __init__(self, in_dim=64,):
         super().__init__()
+
+        hidden_dim = in_dim*4
+        out_dim = in_dim*2
 
         self.net = nn.Sequential(
             nn.Linear(in_dim, hidden_dim),
@@ -32,13 +30,11 @@ class ProjectionMLP(nn.Module):
     
 
 class PredictionMLP(nn.Module):
-    def __init__(
-        self,
-        in_dim=128,
-        hidden_dim=256,
-        out_dim=128,
-    ):
+    def __init__(self, in_dim=64):
         super().__init__()
+
+        hidden_dim = in_dim*2
+        out_dim = in_dim
 
         self.net = nn.Sequential(
             nn.Linear(in_dim, hidden_dim),
@@ -136,7 +132,7 @@ class HPCPSelfAttentionEncoder(nn.Module):
         self.tokenizer = tokenizer
         self.pos = nn.Parameter(torch.zeros(1, num_tokens, self.dim))
         self.self_attention = self_attention
-        self.pair_projection = PairProjection(d_model=d_model, pair_dim=d_model)
+        # self.pair_projection = PairProjection(d_model=d_model, pair_dim=d_model)
 
     def encode_tokens(self, x):  # [B, 1, 96, 4375]
         x = self.tokenizer(x)  # [B, N, D]
@@ -167,10 +163,10 @@ class HPCPSelfAttentionEncoder(nn.Module):
             "local_feature": local_feature,
         }
 
-    def project_local_pair(self, src_local, tgt_local):
-        src_pair, tgt_pair, pair_sim = self.pair_projection(src_local, tgt_local)
+    # def project_local_pair(self, src_local, tgt_local):
+    #     src_pair, tgt_pair, pair_sim = self.pair_projection(src_local, tgt_local)
 
-        return src_pair, tgt_pair, pair_sim
+    #     return src_pair, tgt_pair, pair_sim
 
     def forward(self, src, tgt):
         src_out = self.encode_one(src)
@@ -182,7 +178,7 @@ class HPCPSelfAttentionEncoder(nn.Module):
         src_local = src_out["local_feature"]
         tgt_local = tgt_out["local_feature"]
 
-        src_pair, tgt_pair, pair_sim = self.project_local_pair(src_local, tgt_local)
+        pair_sim = torch.bmm(src_local, tgt_local.transpose(1, 2))
 
         cosine_sim = F.cosine_similarity(src_feature, tgt_feature, dim=-1)
 
@@ -191,8 +187,8 @@ class HPCPSelfAttentionEncoder(nn.Module):
             "tgt_feature": tgt_feature,
             "src_local": src_local,
             "tgt_local": tgt_local,
-            "src_pair": src_pair,
-            "tgt_pair": tgt_pair,
+            # "src_pair": src_pair,
+            # "tgt_pair": tgt_pair,
             "pair_similarity": pair_sim,
             "cosine_similarity": cosine_sim,
         }
@@ -208,9 +204,9 @@ class HPCPMoCo(nn.Module):
         self.encoder_q = encoder
         self.encoder_k = copy.deepcopy(encoder)
 
-        self.projector_q = ProjectionMLP(encoder.dim, proj_hidden, proj_dim)
+        self.projector_q = ProjectionMLP(encoder.dim) # , proj_hidden, proj_dim
         self.projector_k = copy.deepcopy(self.projector_q)
-        self.predictor = PredictionMLP(proj_dim, proj_hidden, proj_dim,)
+        self.predictor = PredictionMLP(proj_dim) # , proj_hidden, proj_dim,
 
         self.encoder_k = copy.deepcopy(encoder)
         self.projector_k = copy.deepcopy(self.projector_q)
@@ -286,7 +282,7 @@ class HPCPMoCo(nn.Module):
         q2 = F.normalize(q2, dim=-1)
 
         # local
-        x1_part, x2_part, pair_sim = self.encoder_q.project_local_pair(local_q1, local_q2)
+        pair_sim = torch.bmm(local_q1, local_q2.transpose(1, 2))
 
         with torch.no_grad():
             self.momentum_update()
@@ -319,7 +315,7 @@ class HPCPMoCo(nn.Module):
             "x1_key_feature": k1,
             "x2_key_feature": k2,
 
-            "x1_loc_pair": x1_part,
-            "x2_loc_pair": x2_part,
+            # "x1_loc_pair": x1_part,
+            # "x2_loc_pair": x2_part,
             "pair_sim": pair_sim
         }

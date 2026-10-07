@@ -12,7 +12,7 @@ from checkpoint import load_checkpoint
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--csv_pref", type=str, default="pair")
-parser.add_argument("--exp_name", type=str, default="hpcp_attn_v10", help="name of training experiment")
+parser.add_argument("--exp_name", type=str, default="hpcp_attn_v13", help="name of training experiment")
 parser.add_argument("--cache_dir", type=str, default="cache", help="cache directory name")
 parser.add_argument("--rep", type=str, default="hpcp", help="representation of the input")
 parser.add_argument("--check_name", type=str, default="last.pt", help="name of checkpoint")
@@ -59,9 +59,9 @@ datacos_loader = DataLoader(datacos_dataset, batch_size=128, shuffle=False, num_
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # model
-tokenizer = a_vittokenizer.RawTokenizer(d_model=64, patch_h=23, patch_w=25)
-selfattn = b_selfattention.SelfAttentionEncoder(nhead=4, d_model=64, num_layers=2, dim_feedforward=256, dropout=0.1)
-model = c_self_sim_model.HPCPSelfAttentionModel(tokenizer=tokenizer, self_attention=selfattn, nhead=4, num_token=175, d_model=64).to(device=device)
+tokenizer = a_vittokenizer.RawTokenizer(d_model=64*2, patch_h=23, patch_w=25)
+selfattn = b_selfattention.SelfAttentionEncoder(nhead=8, d_model=64*2, num_layers=2, dim_feedforward=256*2)
+model = c_self_sim_model.HPCPSelfAttentionModel(tokenizer=tokenizer, self_attention=selfattn, nhead=8, num_token=175, d_model=64*2).to(device=device)
 
 optimizer = torch.optim.AdamW(
     model.parameters(),
@@ -146,6 +146,8 @@ cp40_test_metrics = evaluate_vit(
     model=model,
     dataloader=copyright40_full_loader,
     device=device,
+    save_path=checkpoint_dir,
+    epoch_name=args.check_name,
     margin=0.2,
     top_k=10
 )
@@ -179,6 +181,8 @@ mcic_test_metrics = evaluate_vit(
     model=model,
     dataloader=mcic_loader,
     device=device,
+    save_path=checkpoint_dir,
+    epoch_name=args.check_name,
     margin=0.2,
     top_k=10
 )
@@ -198,25 +202,25 @@ print(
     f"topk_acc: {mcic_test_metrics['topk']}"
 )
 
-# Evaluation on datacos dataset pair
-datacos_test_metrics = evaluate_datacos(
-    model=model,
-    dataloader=datacos_loader,
-    device=device,
-    top_k=10
-)
+# # Evaluation on datacos dataset pair
+# datacos_test_metrics = evaluate_datacos(
+#     model=model,
+#     dataloader=datacos_loader,
+#     device=device,
+#     top_k=10
+# )
 
-test_dataset = "datacos"
-log_eval(log_path=log_path, dataset_name=test_dataset, metrics=datacos_test_metrics)
+# test_dataset = "datacos"
+# log_eval(log_path=log_path, dataset_name=test_dataset, metrics=datacos_test_metrics)
 
-print(
-    f"Loss: {datacos_test_metrics['loss']:.4f} | "
-    f"Pos Cos: {datacos_test_metrics['positive_cosine_mean']:.4f} | "
-    f"Neg Cos: {datacos_test_metrics['negative_cosine_mean']:.4f} | "
-    f"Gap: {datacos_test_metrics['cosine_gap']:.4f} | "
-    f"Roc_AUC {datacos_test_metrics['roc_auc']:.4f} | "
-    f"mrr: {datacos_test_metrics['mrr']} | "
-    f"map: {datacos_test_metrics['map']} | "
-    f"top1_acc : {datacos_test_metrics['top1']} | "
-    f"topk_acc: {datacos_test_metrics['topk']}"
-)
+# print(
+#     f"Loss: {datacos_test_metrics['loss']:.4f} | "
+#     f"Pos Cos: {datacos_test_metrics['positive_cosine_mean']:.4f} | "
+#     f"Neg Cos: {datacos_test_metrics['negative_cosine_mean']:.4f} | "
+#     f"Gap: {datacos_test_metrics['cosine_gap']:.4f} | "
+#     f"Roc_AUC {datacos_test_metrics['roc_auc']:.4f} | "
+#     f"mrr: {datacos_test_metrics['mrr']} | "
+#     f"map: {datacos_test_metrics['map']} | "
+#     f"top1_acc : {datacos_test_metrics['top1']} | "
+#     f"topk_acc: {datacos_test_metrics['topk']}"
+# )

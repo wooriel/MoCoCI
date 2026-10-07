@@ -3,6 +3,7 @@ from models.f_losses import cosine_pair_loss, contrastive_loss, triplet_loss, re
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score
+from graph import glob_pair_heatmap
 
 
 def train_vit_one_epoch(model, dataloader, optimizer, device, margin=0.3):
@@ -171,7 +172,7 @@ def validate_vit_one_epoch(model, dataloader, device, margin=0.3, top_k=10):
 
 
 @torch.no_grad()
-def evaluate_vit(model, dataloader, device, margin=0.3, top_k=10):
+def evaluate_vit(model, dataloader, device, save_path, epoch_name, margin=0.3, top_k=10):
     model.eval()
     total_loss = 0.0
     total_samples = 0
@@ -181,9 +182,13 @@ def evaluate_vit(model, dataloader, device, margin=0.3, top_k=10):
     all_embeddings = [] # for MRR
     all_work_ids = []
 
+    all_src_emb = []
+    all_tgt_emb = []
+
     for batch in tqdm(dataloader, desc="Evaluation", leave=False):
         src = batch["orig_inp"].to(device)
         tgt = batch["cover_inp"].to(device)
+        work_id = batch["work_id"]
 
         pair_label = batch["decision"].to(device=device, dtype=torch.float32)
         pos_mask = pair_label == 1
@@ -193,8 +198,20 @@ def evaluate_vit(model, dataloader, device, margin=0.3, top_k=10):
             work_id = batch["work_id"][pos_mask.cpu().tolist()]
             all_embeddings.append(outputs["src_feature"][pos_mask])
             all_embeddings.append(outputs["tgt_feature"][pos_mask])
+            src_emb = outputs["src_feature"][pos_mask]
+            tgt_emb = outputs["tgt_feature"][pos_mask]
+            all_src_emb.append(src_emb)
+            all_tgt_emb.append(tgt_emb)
             all_work_ids.extend(work_id.cpu().tolist())
             all_work_ids.extend(work_id.cpu().tolist())
+
+            # local_src = outputs["src_local"][pos_mask][0]
+            # local_tgt = outputs["tgt_local"][pos_mask][0]
+            # print(local_src.shape)
+            # print(local_tgt.shape)
+            # pair_sim = outputs["pair_similarity"][pos_mask][0]
+            # print(pair_sim.shape)
+            # pair_heatmap(save_path, work_id[0], epoch_name, pair_sim)
 
         cosine_sim = outputs["cosine_similarity"]
         losses = cosine_pair_loss(cosine_similarity=cosine_sim, pair_label=pair_label, margin=margin)
@@ -235,7 +252,11 @@ def evaluate_vit(model, dataloader, device, margin=0.3, top_k=10):
     print("ROC-AUC:", auc)
     
     all_embeddings = torch.cat(all_embeddings, dim=0)
+    all_src_emb = torch.cat(all_src_emb, dim=0)
+    all_tgt_emb = torch.cat(all_tgt_emb, dim=0)
     ret_metrics = retrieval_metrics(all_embeddings, all_work_ids, top_k=top_k) # calculate MRR | MAP
+
+    # glob_pair_heatmap(save_path, epoch_name, all_src_emb, all_tgt_emb)
 
     return {
         "loss": total_loss / total_samples,

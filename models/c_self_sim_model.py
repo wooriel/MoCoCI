@@ -159,11 +159,11 @@ class PairProjection(nn.Module): # this finds local match between
         )
 
     def forward(self, src, tgt): # src: [B,N,D] | tgt: [B,M,D]
-        src = self.src_proj(src) # [B,N,pair_dim]
-        tgt = self.tgt_proj(tgt) # [B,M,pair_dim]
+        # src = self.src_proj(src) # [B,N,pair_dim]
+        # tgt = self.tgt_proj(tgt) # [B,M,pair_dim]
 
-        src = F.normalize(src, p=2, dim=-1)
-        tgt = F.normalize(tgt, p=2, dim=-1)
+        # src = F.normalize(src, p=2, dim=-1)
+        # tgt = F.normalize(tgt, p=2, dim=-1)
 
         sim = torch.bmm(src, tgt.transpose(1, 2)) # [B,N,M]
 
@@ -281,6 +281,23 @@ class LGSelfAttentionModel(nn.Module): # used for HPCP
         }
     
 
+class AttentionPool(nn.Module):
+    def __init__(self, d_model):
+        super().__init__()
+
+        self.score = nn.Linear(d_model, 1)
+
+    def forward(self, x):
+        # x: [B, N, D]
+
+        weight = self.score(x) # [B, N, 1]
+        weight = torch.softmax(weight, dim=1)
+
+        x = (x * weight).sum(dim=1) # [B, D]
+
+        return x
+    
+
 class HPCPSelfAttentionModel(nn.Module): # used for HPCP
     def __init__(self, tokenizer, self_attention, nhead, num_token=175, d_model=64):
         super().__init__()
@@ -290,8 +307,9 @@ class HPCPSelfAttentionModel(nn.Module): # used for HPCP
         self.tokenizer = tokenizer
         self.pos_embed = nn.Parameter(torch.zeros(1, self.num_token, self.dim))
         self.self_attention = self_attention
+        self.global_pool = AttentionPool(d_model=self.dim)
 
-        self.pair_projection = PairProjection(d_model=self.dim, pair_dim=self.dim)
+        # self.pair_projection = PairProjection(d_model=self.dim, pair_dim=self.dim)
         # self.song_pool = MultiTokenAttentionPool(d_model=self.dim, num_pool=self.num_pool)
         # self.pool_proj = nn.Linear(self.head * self.num_pool * self.dim, self.dim)
 
@@ -308,14 +326,8 @@ class HPCPSelfAttentionModel(nn.Module): # used for HPCP
         # B, H, N, D = x.shape
         B, N, D = x.shape
 
-        # x = x.reshape(B * H, N, D) # [B*H, N, D]
-        # x = self.song_pool(x) # [B*H, K, D]
         # x = x.mean(dim=1)
-        # x = x.reshape(B, H, D)
-        x = x.mean(dim=1)
-        # x = x.reshape(B, H, self.num_pool, D) # [B, H, K, D]
-        # x = x.flatten(1) # [B, H*K*D]
-        # x = self.pool_proj(x) # [B, D]
+        x = self.global_pool(x)
         x = F.normalize(x, p=2, dim=-1)
         return x
     
@@ -325,8 +337,6 @@ class HPCPSelfAttentionModel(nn.Module): # used for HPCP
         return x
 
     def forward(self, src, tgt):
-        
-
         src_token = self.encode_tokens(src)
         tgt_token = self.encode_tokens(tgt)
 
@@ -336,7 +346,7 @@ class HPCPSelfAttentionModel(nn.Module): # used for HPCP
         src_local = self.local_embedding(src_token)
         tgt_local = self.local_embedding(tgt_token)
 
-        src_pair, tgt_pair, pair_sim = self.pair_projection(src_local, tgt_local)
+        pair_sim = torch.bmm(src_local, tgt_local.transpose(1, 2))
 
         cosine_sim = F.cosine_similarity(src_feature, tgt_feature, dim=-1)
 
@@ -345,8 +355,8 @@ class HPCPSelfAttentionModel(nn.Module): # used for HPCP
             "tgt_feature": tgt_feature,
             "src_local": src_local,
             "tgt_local": tgt_local,
-            "src_pair": src_pair,
-            "tgt_pair": tgt_pair,
+            # "src_pair": src_pair,
+            # "tgt_pair": tgt_pair,
             "pair_similarity": pair_sim,
             "cosine_similarity": cosine_sim
         }

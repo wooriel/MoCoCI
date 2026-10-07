@@ -5,6 +5,20 @@ from pydub import AudioSegment
 import librosa
 import essentia.standard as es
 import h5py, json, csv
+import inspect
+# import acoss.features
+
+
+_CREMA_MODEL = None
+
+
+def get_crema_model():
+    global _CREMA_MODEL
+
+    if _CREMA_MODEL is None:
+        _CREMA_MODEL = ChordModel()
+
+    return _CREMA_MODEL
 
 
 def from_midi(file_path, sample_rate=32000):
@@ -184,6 +198,35 @@ def get_hpcp(file_path, format="mp3", hpcp_size=12, minFreq=40, maxFreq=5000, cr
         return crop_hpcp
     else:
         return hpcp
+    
+
+def get_cremapcp(file_path, format="mp3", crop=False):
+    if format == "mp3":
+        audio = AudioSegment.from_mp3(file_path)
+        wav_amp, sample_rate = get_pcm_samples(audio)
+    elif format == "mid":
+        wav_amp, sample_rate = from_midi(file_path)# function
+
+    model = get_crema_model()
+    pitch_class = PitchClass(sr=sample_rate)
+    features = pitch_class.transform(wav_amp)
+    crema = model.model.predict(features, verbose=0)
+
+    crema = np.asarray(crema, dtype=np.float32)
+
+    if crema.ndim != 2:
+        raise ValueError(f"Unexpected crema output shape: {crema.shape}")
+
+    if crema.shape[-1] == 12:
+        crema = crema.T
+    elif crema.shape[0] != 12:
+        raise ValueError(f"Expected 12 pitch classes, got {crema.shape}")
+
+    if crop:
+        crema_hop_length = int(round(0.093 * sample_rate))
+        crema = get_croped_chroma(wav_amp, crema, frame_length=crema_hop_length, hop_length=crema_hop_length)
+
+    return crema
 
 
 def load_json_metadata(file_path):

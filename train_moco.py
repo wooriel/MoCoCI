@@ -36,6 +36,7 @@ def train_vit_moco_one_epoch(model, dataloader, optimizer, device):
         optimizer.zero_grad()
 
         output = model(x1, x2)
+        outputn = model(x1, neg_x2)
 
         # 1. flatten to have same pair on the batch
         query_pred = torch.cat([output["x1_query_pred"], output["x2_query_pred"]], dim=0) # [2B, D]
@@ -82,12 +83,14 @@ def train_vit_moco_one_epoch(model, dataloader, optimizer, device):
         )
 
         pos_sim = output["pair_sim"]
-        neg_out = model.encoder_q.encode_one(neg_x2)
-        neg_local = neg_out["local_feature"]
-        _, _, neg_sim = model.encoder_q.pair_projection(
-            output["x1_local_feature"],
-            neg_local
-        )
+        neg_sim = outputn["pair_sim"]
+        # neg_out = model.encoder_q.encode_one(neg_x2)
+        # neg_local = neg_out["local_feature"]
+        
+        # _, _, neg_sim = model.encoder_q.pair_projection(
+        #     output["x1_local_feature"],
+        #     neg_local
+        # )
         pos_local_score, _, _ = best_diagonal_window(pos_sim, window=8)
         neg_local_score, _, _ = best_diagonal_window(neg_sim, window=8)
         local_loss = F.relu(neg_local_score - pos_local_score + 0.2).mean()
@@ -161,6 +164,7 @@ def validate_vit_moco_one_epoch(model, dataloader, device):
         neg_x2 = batch["neg_inp"].to(device)
 
         output = model(x1, x2)
+        outputn = model(x1, neg_x2)
 
         # 1. flatten to have same pair on the batch
         query_pred = torch.cat([output["x1_query_pred"], output["x2_query_pred"]], dim=0) # [2B, D]
@@ -215,12 +219,13 @@ def validate_vit_moco_one_epoch(model, dataloader, device):
         )
 
         pos_sim = output["pair_sim"]
+        neg_sim = outputn["pair_sim"]
         neg_out = model.encoder_q.encode_one(neg_x2)
-        neg_local = neg_out["local_feature"]
-        _, _, neg_sim = model.encoder_q.pair_projection(
-            output["x1_local_feature"],
-            neg_local
-        )
+        # neg_local = neg_out["local_feature"]
+        # _, _, neg_sim = model.encoder_q.pair_projection(
+        #     output["x1_local_feature"],
+        #     neg_local
+        # )
         pos_local_score, _, _ = best_diagonal_window(pos_sim, window=40)
         neg_local_score, _, _ = best_diagonal_window(neg_sim, window=40)
         local_loss = F.relu(neg_local_score - pos_local_score + 0.2).mean()
@@ -291,6 +296,7 @@ def evaluate_vit_moco_pn(model, dataloader, device):
         neg_x2 = batch["neg_inp"].to(device)
 
         output = model(x1, x2)
+        outputn = model(x1, neg_x2)
 
         # 1. flatten to have same pair on the batch
         query_pred = torch.cat([output["x1_query_pred"], output["x2_query_pred"]], dim=0) # [2B, D]
@@ -345,12 +351,13 @@ def evaluate_vit_moco_pn(model, dataloader, device):
         )
 
         pos_sim = output["pair_sim"]
-        neg_out = model.encoder_q.encode_one(neg_x2)
-        neg_local = neg_out["local_feature"]
-        _, _, neg_sim = model.encoder_q.pair_projection(
-            output["x1_local_feature"],
-            neg_local
-        )
+        neg_sim = outputn["pair_sim"]
+        # neg_out = model.encoder_q.encode_one(neg_x2)
+        # neg_local = neg_out["local_feature"]
+        # _, _, neg_sim = model.encoder_q.pair_projection(
+        #     output["x1_local_feature"],
+        #     neg_local
+        # )
         pos_local_score, _, _ = best_diagonal_window(pos_sim, window=40)
         neg_local_score, _, _ = best_diagonal_window(neg_sim, window=40)
         local_loss = F.relu(neg_local_score - pos_local_score + 0.2).mean()

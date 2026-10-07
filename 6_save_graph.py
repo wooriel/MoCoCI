@@ -6,7 +6,7 @@ from graph import parse_train_log, plot_metric_trend, parse_eval_log, plot_eval_
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--check_dir", type=str, default="checkpoints", help="checkpoint directory name")
-parser.add_argument("--exp_name", type=str, default="hpcp_attn_v10", help="name of training experiment") # moco_attn_v9 hpcp_attn_v10
+parser.add_argument("--exp_name", type=str, default="hpcp_attn_v13", help="name of training experiment") # moco_attn_v9 hpcp_attn_v10
 parser.add_argument("--log_type", type=str, default="ci_eval", help="one between train, eval, ci_eval")
 parser.add_argument("--save_dir", type=str, default="save", help="name of saving directory name")
 parser.add_argument("--all", type=bool, default=True, help="name of saving directory name")
@@ -28,9 +28,9 @@ elif args.log_type == "eval":
 else:
     log_df = parse_ci_eval_log(log_path)
     if args.all:
-        key = ["auc", "threshold", "accuracy", "precision", "recall", "f1"]
+        key = ["auc", "accuracy"]
         plot_all_ci_metrics_by_dataset(log_df, key, save_path)
     else:
-        for key in ["auc", "threshold", "accuracy", "precision", "recall", "f1"]:
+        for key in ["auc", "accuracy"]:
             plot_ci_metric_by_dataset(log_df, key, save_path)
     

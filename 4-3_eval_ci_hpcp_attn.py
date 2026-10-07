@@ -11,7 +11,7 @@ from checkpoint import load_checkpoint
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--csv_pref", type=str, default="pair")
-parser.add_argument("--exp_name", type=str, default="hpcp_attn_v10", help="name of training experiment")
+parser.add_argument("--exp_name", type=str, default="hpcp_attn_v13", help="name of training experiment")
 parser.add_argument("--cache_dir", type=str, default="cache", help="cache directory name")
 parser.add_argument("--rep", type=str, default="hpcp", help="representation of the input")
 parser.add_argument("--check_name", type=str, default="last.pt", help="name of checkpoint")
@@ -58,9 +58,9 @@ mcic_loader = DataLoader(mcic_dataset, batch_size=120, shuffle=False, num_worker
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # model
-tokenizer = a_vittokenizer.RawTokenizer(d_model=64, patch_h=23, patch_w=25)
-selfattn = b_selfattention.SelfAttentionEncoder(nhead=4, d_model=64, num_layers=2, dim_feedforward=256, dropout=0.1)
-model = c_self_sim_model.HPCPSelfAttentionModel(tokenizer=tokenizer, self_attention=selfattn, nhead=4, num_token=175, d_model=64).to(device=device)
+tokenizer = a_vittokenizer.RawTokenizer(d_model=64*2, patch_h=23, patch_w=25)
+selfattn = b_selfattention.SelfAttentionEncoder(nhead=8, d_model=64*2, num_layers=2, dim_feedforward=256*2)
+model = c_self_sim_model.HPCPSelfAttentionModel(tokenizer=tokenizer, self_attention=selfattn, nhead=8, num_token=175, d_model=64*2).to(device=device)
 
 optimizer = torch.optim.AdamW(
     model.parameters(),
@@ -89,62 +89,15 @@ if checkpoint_path.is_file():
 else:
     print("No checkpoint found. Starting from epoch 1.")
 
-# # Evaluation on shs-100K test dataset pair
-# shs_test_metrics = evaluate_vit_align_one_epoch(
-#     model=model,
-#     dataloader=shs_test_loader,
-#     device=device,
-#     glo_margin=0.2,
-#     loc_margin=0.2,
-#     top_k=10
-# )
-
-# test_dataset = "shs_test_pairs"
-# log_eval(log_path=log_path, dataset_name=test_dataset, metrics=shs_test_metrics)
-
-# print(
-#     f"Loss: {shs_test_metrics['loss']:.4f} | ",
-#     f"Pos Cos: {shs_test_metrics['positive_cosine_mean']:.4f} | "
-#     f"Neg Cos: {shs_test_metrics['negative_cosine_mean']:.4f} | "
-#     f"Gap: {shs_test_metrics['cosine_gap']:.4f} | "
-#     f"Roc_AUC: {shs_test_metrics['roc_auc']:.4f} | "
-#     f"mrr: {shs_test_metrics['mrr']} | "
-#     f"map: {shs_test_metrics['map']} | "
-#     f"top1_acc : {shs_test_metrics['top1']} | "
-#     f"topk_acc: {shs_test_metrics['topk']}"
-# )
-
-# # Evaluation on cover80 dataset pair
-# c80_test_metrics = evaluate_vit_align_one_epoch(
-#     model=model,
-#     dataloader=cover80_loader,
-#     device=device,
-#     glo_margin=0.2,
-#     loc_margin=0.2,
-#     top_k=10
-# )
-
-# test_dataset = "cover80"
-# log_eval(log_path=log_path, dataset_name=test_dataset, metrics=c80_test_metrics)
-
-# print(
-#     f": {c80_test_metrics['loss']:.4f} | "
-#     f"Pos Cos: {c80_test_metrics['positive_cosine_mean']:.4f} | "
-#     f"Neg Cos: {c80_test_metrics['negative_cosine_mean']:.4f} | "
-#     f"Gap: {c80_test_metrics['cosine_gap']:.4f} | "
-#     f"Roc_AUC {c80_test_metrics['roc_auc']:.4f} | "
-#     f"mrr: {c80_test_metrics['mrr']} | "
-#     f"map: {c80_test_metrics['map']} | "
-#     f"top1_acc : {c80_test_metrics['top1']} | "
-#     f"topk_acc: {c80_test_metrics['topk']}"
-# )
-
 
 # Evaluation on copy40 dataset pair
 cp40_test_metrics = calculate_ci_metric(
     model=model,
     dataloader=copyright40_full_loader,
     device=device,
+    save_path=checkpoint_dir,
+    dset_name="cp40",
+    epoch_name=args.check_name,
     # margin=0.2,
     # top_k=10
 )
@@ -153,15 +106,27 @@ test_dataset = "copyright40"
 log_ci_eval(log_path=log_path, dataset_name=test_dataset, metrics=cp40_test_metrics)
 
 print(
-    f"Pos Cos: {cp40_test_metrics['positive_cosine_mean']:.4f} | "
-    f"Neg Cos: {cp40_test_metrics['negative_cosine_mean']:.4f} | "
-    f"Gap: {cp40_test_metrics['cosine_gap']:.4f} | "
-    f"Roc_AUC {cp40_test_metrics['roc_auc']:.4f} | "
-    f"Threshold: {cp40_test_metrics['threshold']} | "
-    f"Accuracy: {cp40_test_metrics['accuracy']} | "
-    f"F1: {cp40_test_metrics['f1']} | "
-    f"Precision: {cp40_test_metrics['precision']} | "
-    f"Recall: {cp40_test_metrics['recall']}"
+    # f"Glob Pos Cos: {cp40_test_metrics['positive_cosine_mean']:.4f} | "
+    # f"Glob Neg Cos: {cp40_test_metrics['negative_cosine_mean']:.4f} | "
+    # f"Glob Gap: {cp40_test_metrics['cosine_gap']:.4f} | "
+    f"Glob Roc_AUC {cp40_test_metrics['glob_auc']:.4f} | "
+    f"Loc Roc_AUC {cp40_test_metrics['loc_auc']:.4f} | "
+    f"Comb Roc_AUC {cp40_test_metrics['loc_auc']:.4f} | "
+    f"Glob Threshold: {cp40_test_metrics['threshold']:.4f} | "
+    f"Loc Threshold: {cp40_test_metrics['loc_threshold']:.4f} | "
+    f"Comb Threshold: {cp40_test_metrics['loc_threshold']:.4f} | "
+    f"Accuracy: {cp40_test_metrics['accuracy']:.4f} | "
+    f"Loc Accuracy: {cp40_test_metrics['loc_accuracy']:.4f} | "
+    f"Comb Accuracy: {cp40_test_metrics['loc_accuracy']:.4f} | "
+    f"F1: {cp40_test_metrics['f1']:.4f} | "
+    f"Loc F1: {cp40_test_metrics['loc_f1']:.4f} | "
+    f"Comb F1: {cp40_test_metrics['loc_f1']:.4f} | "
+    f"Precision: {cp40_test_metrics['precision']:.4f} | "
+    f"Loc Precision: {cp40_test_metrics['loc_precision']:.4f} | "
+    f"Comb Precision: {cp40_test_metrics['loc_precision']:.4f} | "
+    f"Recall: {cp40_test_metrics['recall']:.4f} | "
+    f"Loc Recall: {cp40_test_metrics['loc_recall']:.4f} | "
+    f"Comb Recall: {cp40_test_metrics['loc_recall']:.4f}"
 )
 
 num_pos = sum(decision == 1 for decision in mcic_dataset.decisions)
@@ -178,6 +143,9 @@ mcic_test_metrics = calculate_ci_metric(
     model=model,
     dataloader=mcic_loader,
     device=device,
+    save_path=checkpoint_dir,
+    dset_name="mcic",
+    epoch_name=args.check_name,
     # margin=0.2,
     # top_k=10
 )
@@ -186,16 +154,29 @@ test_dataset = "mcic"
 log_ci_eval(log_path=log_path, dataset_name=test_dataset, metrics=mcic_test_metrics)
 
 print(
-    f"Pos Cos: {mcic_test_metrics['positive_cosine_mean']:.4f} | "
-    f"Neg Cos: {mcic_test_metrics['negative_cosine_mean']:.4f} | "
-    f"Gap: {mcic_test_metrics['cosine_gap']:.4f} | "
-    f"Roc_AUC {mcic_test_metrics['roc_auc']:.4f} | "
-    f"Threshold: {mcic_test_metrics['threshold']} | "
-    f"Accuracy: {mcic_test_metrics['accuracy']} | "
-    f"F1: {mcic_test_metrics['f1']} | "
-    f"Precision: {mcic_test_metrics['precision']} | "
-    f"Recall: {mcic_test_metrics['recall']}"
+    # f"Glob Pos Cos: {mcic_test_metrics['positive_cosine_mean']:.4f} | "
+    # f"Glob Neg Cos: {mcic_test_metrics['negative_cosine_mean']:.4f} | "
+    # f"Glob Gap: {mcic_test_metrics['cosine_gap']:.4f} | "
+    f"Glob Roc_AUC {mcic_test_metrics['glob_auc']:.4f} | "
+    f"Loc Roc_AUC {mcic_test_metrics['loc_auc']:.4f} | "
+    f"Comb Roc_AUC {mcic_test_metrics['loc_auc']:.4f} | "
+    f"Glob Threshold: {mcic_test_metrics['threshold']:.4f} | "
+    f"Loc Threshold: {mcic_test_metrics['loc_threshold']:.4f} | "
+    f"Comb Threshold: {mcic_test_metrics['loc_threshold']:.4f} | "
+    f"Accuracy: {mcic_test_metrics['accuracy']:.4f} | "
+    f"Loc Accuracy: {mcic_test_metrics['loc_accuracy']:.4f} | "
+    f"Comb Accuracy: {mcic_test_metrics['loc_accuracy']:.4f} | "
+    f"F1: {mcic_test_metrics['f1']:.4f} | "
+    f"Loc F1: {mcic_test_metrics['loc_f1']:.4f} | "
+    f"Comb F1: {mcic_test_metrics['loc_f1']:.4f} | "
+    f"Precision: {mcic_test_metrics['precision']:.4f} | "
+    f"Loc Precision: {mcic_test_metrics['loc_precision']:.4f} | "
+    f"Comb Precision: {mcic_test_metrics['loc_precision']:.4f} | "
+    f"Recall: {mcic_test_metrics['recall']:.4f} | "
+    f"Loc Recall: {mcic_test_metrics['loc_recall']:.4f} | "
+    f"Comb Recall: {mcic_test_metrics['loc_recall']:.4f}"
 )
+
 
 # # Evaluation on datacos dataset pair
 # datacos_test_metrics = evaluate_datacos(

@@ -1,5 +1,7 @@
 import re
 import pandas as pd
+import torch
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 from pathlib import Path
@@ -289,14 +291,15 @@ def plot_all_ci_metrics_by_dataset(
     save_dir="ci_eval_plots",
 ):
     if metrics is None:
-        metrics = [
-            "auc",
-            "threshold",
-            "accuracy",
-            "precision",
-            "recall",
-            "f1",
-        ]
+        metrics = ["auc", "accuracy"]
+        # metrics = [
+        #     "auc",
+        #     "threshold",
+        #     "accuracy",
+        #     "precision",
+        #     "recall",
+        #     "f1",
+        # ]
 
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -327,7 +330,8 @@ def plot_all_ci_metrics_by_dataset(
                 epochs,
                 values,
                 marker="o",
-                markersize=3,
+                markersize=10,
+                linewidth=5,
                 label=metric.upper(),
             )
 
@@ -350,3 +354,102 @@ def plot_all_ci_metrics_by_dataset(
         )
 
         plt.close()
+
+
+def glob_pair_heatmap(save_dir, dset_name, epoch_name, all_src_emb, all_tgt_emb):
+    all_src_emb = F.normalize(all_src_emb, dim=-1)
+    all_tgt_emb = F.normalize(all_tgt_emb, dim=-1)
+
+    sim_matrix = all_src_emb @ all_tgt_emb.T
+    plt.figure(figsize=(10, 8))
+    plt.imshow(
+        sim_matrix.detach().cpu().numpy(),
+        aspect="auto",
+        origin="lower",
+    )
+    plt.colorbar(label="Similarity")
+    plt.xlabel("Target local feature index")
+    plt.ylabel("Source local feature index")
+    plt.title("Pairwise Global Similarity")
+    plt.tight_layout()
+
+    save_path = save_dir / f"{dset_name}_{epoch_name.split(".")[0][-3:]}_glob_cos_sim.png"
+
+    plt.savefig(
+        save_path,
+        dpi=300,
+    )
+
+def local_pair_heatmap(save_dir, dset_name, epoch_name, src_local, tgt_local):
+    """
+    Compare every selected source local segment with every selected
+    target local segment.
+
+    src_local: [N, W, D]
+    tgt_local: [M, W, D]
+
+    Returns:
+        score_matrix: [N, M]
+    """
+
+    # Normalize just in case
+    src_local = F.normalize(src_local, p=2, dim=-1)
+    tgt_local = F.normalize(tgt_local, p=2, dim=-1)
+
+    print("src local:", src_local.shape)
+    print("tgt local:", tgt_local.shape)
+
+    # [N, W, D] x [M, W, D]
+    # -> [N, M, W, W]
+    pair_sim = torch.einsum(
+        "nkd,mld->nmkl",
+        src_local,
+        tgt_local
+    )
+
+    # Take corresponding positions within each selected window:
+    #
+    # src[0] <-> tgt[0]
+    # src[1] <-> tgt[1]
+    # ...
+    #
+    # [N, M, W]
+    diagonal_sim = pair_sim.diagonal(
+        dim1=-2,
+        dim2=-1
+    )
+
+    # Mean similarity of the W aligned local embeddings
+    # [N, M]
+    score_matrix = diagonal_sim.mean(dim=-1)
+
+    print("local score matrix:", score_matrix.shape)
+    print(
+        "score min/mean/max:",
+        score_matrix.min().item(),
+        score_matrix.mean().item(),
+        score_matrix.max().item()
+    )
+
+    # Save heatmap
+    save_dir = Path(save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    save_path = (save_dir / f"{dset_name}_{epoch_name.split(".")[0][-3:]}_local_similarity.png")
+
+    plt.figure(figsize=(10, 8))
+
+    plt.imshow(
+        score_matrix.detach().cpu().numpy(),
+        aspect="auto",
+        origin="lower"
+    )
+
+    plt.colorbar(label="Local cosine similarity")
+    plt.xlabel("Target local segment")
+    plt.ylabel("Source local segment")
+    plt.title(f"{dset_name} - Local Similarity")
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300)
+    plt.close()
