@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 import torch.nn.functional as F
 
 import audio_conv as ac
-import data_augmentation as da
+import dataset.data_augmentation as da
 
 
 class SHSDataset(Dataset):

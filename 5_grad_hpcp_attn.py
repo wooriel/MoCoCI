@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from models import modules
 from train.train_align import train_vit_align_one_epoch, validate_vit_align_one_epoch, log_train_val
 from train.checkpoint import save_checkpoint, load_checkpoint
-from data_augmentation import cyclic_subset
+from dataset.data_augmentation import cyclic_subset
 
 
 parser = argparse.ArgumentParser()
