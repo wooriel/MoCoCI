@@ -3,33 +3,6 @@ import torch
 import torch.nn.functional as F
 
 
-def flatten_grads(grads):
-    flat = []
-
-    for g in grads:
-        if g is not None:
-            flat.append(g.detach().reshape(-1))
-
-    if len(flat) == 0:
-        return None
-
-    return torch.cat(flat)
-
-
-# def gradient_cosine(grads_a, grads_b):
-#     ga = flatten_grads(grads_a)
-#     gb = flatten_grads(grads_b)
-
-#     if ga is None or gb is None:
-#         return float("nan")
-
-#     return F.cosine_similarity(
-#         ga.unsqueeze(0),
-#         gb.unsqueeze(0),
-#         dim=1
-#     ).item()
-
-
 def gradient_cosine(grads_a, grads_b):
     flat_a = []
     flat_b = []

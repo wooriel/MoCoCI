@@ -1,8 +1,9 @@
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import roc_curve, accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, roc_auc_score
+from models.losses import best_diagonal_window
 from graph import glob_pair_heatmap, local_pair_heatmap
-from models.f_losses import best_diagonal_window
+
 
 def calculate_ci_metric(model, dataloader, dset_name, device, save_path, epoch_name):
     all_cosine_sim = []
@@ -258,8 +259,8 @@ def calculate_ci_moco_metric(model, dataloader, dset_name, device, save_path, ep
 
         output = model(src, tgt)
         if pos_mask.any():
-            src_emb = output["x1_glob_feature"][pos_mask]
-            tgt_emb = output["x2_glob_feature"][pos_mask]
+            src_emb = output["x1_query_pred"][pos_mask]
+            tgt_emb = output["x2_key_feature"][pos_mask]
             all_src_emb.append(src_emb)
             all_tgt_emb.append(tgt_emb)
             loc_src_emb = output["x1_local_feature"][pos_mask]

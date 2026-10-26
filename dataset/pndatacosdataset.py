@@ -1,12 +1,10 @@
-import math
 from pathlib import Path
 import random
-from itertools import combinations
-import numpy as np
-import torch
-from torch.utils.data import Dataset, DataLoader
-import torch.nn.functional as F
 import pandas as pd
+import torch
+from torch.utils.data import Dataset
+import torch.nn.functional as F
+
 import data_augmentation as da
 
 

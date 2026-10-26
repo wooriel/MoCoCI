@@ -60,7 +60,7 @@ def parse_train_log(log_path):
                     temp = None
 
 
-            elif line.startswith("AUC:"):
+            elif line.startswith("Glob AUC:"):
                 if temp is None:
                     continue
 
@@ -367,10 +367,10 @@ def glob_pair_heatmap(save_dir, dset_name, epoch_name, all_src_emb, all_tgt_emb)
         aspect="auto",
         origin="lower",
     )
-    plt.colorbar(label="Similarity")
-    plt.xlabel("Target local feature index")
-    plt.ylabel("Source local feature index")
-    plt.title("Pairwise Global Similarity")
+    plt.colorbar(label="Global Cosine Similarity")
+    plt.xlabel("Target Song Index")
+    plt.ylabel("Source Song Index")
+    plt.title(f"{dset_name} - Global Similarity")
     plt.tight_layout()
 
     save_path = save_dir / f"{dset_name}_{epoch_name.split(".")[0][-3:]}_glob_cos_sim.png"
@@ -445,9 +445,9 @@ def local_pair_heatmap(save_dir, dset_name, epoch_name, src_local, tgt_local):
         origin="lower"
     )
 
-    plt.colorbar(label="Local cosine similarity")
-    plt.xlabel("Target local segment")
-    plt.ylabel("Source local segment")
+    plt.colorbar(label="Local Cosine Similarity")
+    plt.xlabel("Target Song Index")
+    plt.ylabel("Source Song Index")
     plt.title(f"{dset_name} - Local Similarity")
 
     plt.tight_layout()

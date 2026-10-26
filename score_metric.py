@@ -93,38 +93,3 @@ def get_map(score_matrix, tgt_labels):
         return 0.0
     else:
         return np.mean(average_precisions)
-    
-
-def get_moco_mrr(retrieval_sim, positive_mask):
-    N = retrieval_sim.size(0)
-
-    mrr_lst = []
-    map_lst = []
-
-    for i in range(N):
-        scores = retrieval_sim[i] # [N]
-        positives = positive_mask[i] # [N]
-        num_pos = positives.sum()
-
-        if positives.sum() == 0:
-            continue
-
-        ranking = torch.argsort(scores, descending=True)
-        ranked_positive = positives[ranking] # select same coversong
-
-        # MRR
-        positive_ranks = torch.nonzero(ranked_positive, as_tuple=False).squeeze(1)
-        first_rank = positive_ranks[0] + 1  # 1-based
-        mrr_lst.append(1.0 / first_rank.float())
-
-        # MAP
-        cumulative_hits = torch.cumsum(ranked_positive.float(), dim=0)
-        ranks = torch.arange(1, N + 1, device=scores.device, dtype=torch.float)
-        precision_at_k = cumulative_hits / ranks
-        ap = (precision_at_k * ranked_positive).sum() / num_pos.float()
-        map_lst.append(ap)
-        
-    mrr_score = torch.stack(mrr_lst).mean()
-    map_score = torch.stack(map_lst).mean()
-
-    return mrr_score, map_score
